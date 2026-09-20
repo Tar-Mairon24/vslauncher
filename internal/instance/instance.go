@@ -38,12 +38,17 @@ func Create(ctx context.Context, name string, release versions.Release, customPa
 		return nil, fmt.Errorf("installing instance %q: %w", name, err)
 	}
 
+	if err := os.MkdirAll(filepath.Join(instanceDir, "data"), 0755); err != nil {
+		return nil, fmt.Errorf("creating data directory: %w", err)
+	}
+
 	inst := &Instance{
 		Name:        name,
 		Version:     release.Version,
 		Channel:     release.Channel,
 		Platform:    release.Platform,
 		Path:        instanceDir,
+		DataPath:    filepath.Join(instanceDir, "data"),
 		InstalledAt: time.Now(),
 	}
 
@@ -103,21 +108,9 @@ func List() ([]Instance, error) {
 }
 
 func Remove(name string) error {
-	instances, err := List()
+	instToRemove, err := findByName(name)
 	if err != nil {
-		return fmt.Errorf("listing instances: %w", err)
-	}
-
-	var instToRemove *Instance
-	for _, inst := range instances {
-		if inst.Name == name {
-			instToRemove = &inst
-			break
-		}
-	}
-
-	if instToRemove == nil {
-		return fmt.Errorf("instance %q not found", name)
+		return err
 	}
 
 	if err := os.RemoveAll(instToRemove.Path); err != nil {
@@ -129,6 +122,30 @@ func Remove(name string) error {
 	}
 
 	return nil
+}
+
+func Update(name string, newRelease versions.Release) error {
+	instToUpdate, err := findByName(name)
+	if err != nil {
+		return err
+	}
+
+	gameDir := filepath.Join(instToUpdate.Path, "vintagestory")
+
+	if err := os.RemoveAll(gameDir); err != nil {
+		return fmt.Errorf("removing old game files: %w", err)
+	}
+
+	if err := download.FetchAndExtract(context.Background(), newRelease, instToUpdate.Path); err != nil {
+		return fmt.Errorf("downloading and extracting new release: %w", err)
+	}
+
+	instToUpdate.Version = newRelease.Version
+	instToUpdate.Channel = newRelease.Channel
+	instToUpdate.DataPath = filepath.Join(instToUpdate.Path, "data")
+	instToUpdate.UpdatedAt = time.Now()
+
+	return save(instToUpdate)
 }
 
 func scanDir(root string) ([]Instance, error) {
@@ -168,6 +185,26 @@ func load(path string) (*Instance, error) {
 	}
 
 	return &inst, nil
+}
+
+func findByName(name string) (*Instance, error) {
+	instances, err := List()
+	if err != nil {
+		return nil, fmt.Errorf("listing instances: %w", err)
+	}
+
+	var instToFind *Instance
+	for _, inst := range instances {
+		if inst.Name == name {
+			instToFind = &inst
+			break
+		}
+	}
+
+	if instToFind == nil {
+		return nil, fmt.Errorf("instance %q not found", name)
+	}
+	return instToFind, nil
 }
 
 func save(inst *Instance) error {

@@ -8,7 +8,9 @@ type Instance struct {
 	Channel     string    `json:"channel"`
 	Platform    string    `json:"platform"`
 	Path        string    `json:"path"`
+	DataPath    string    `json:"data_path"`
 	InstalledAt time.Time `json:"installed_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type registryEntry struct {

@@ -121,12 +121,8 @@ func extractTarGz(archivePath, destDir string) error {
 			return err
 		}
 
-		relativePath, ok := stripFirstComponent(header.Name)
-		if !ok {
-			continue
-		}
-
-		targetPath := filepath.Join(destDir, relativePath)
+		targetPath := filepath.Join(destDir, header.Name)
+		
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if err := os.MkdirAll(targetPath, 0755); err != nil {
@@ -151,15 +147,3 @@ func extractTarGz(archivePath, destDir string) error {
 	}
 }
 
-func stripFirstComponent(name string) (string, bool) {
-	name = strings.TrimPrefix(name, "/")
-	idx := strings.Index(name, "/")
-	if idx == -1 {
-		return "", false
-	}
-	rest := name[idx+1:]
-	if rest == "" {
-		return "", false
-	}
-	return rest, true
-}
