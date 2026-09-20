@@ -102,6 +102,35 @@ func List() ([]Instance, error) {
 	return instances, nil
 }
 
+func Remove(name string) error {
+	instances, err := List()
+	if err != nil {
+		return fmt.Errorf("listing instances: %w", err)
+	}
+
+	var instToRemove *Instance
+	for _, inst := range instances {
+		if inst.Name == name {
+			instToRemove = &inst
+			break
+		}
+	}
+
+	if instToRemove == nil {
+		return fmt.Errorf("instance %q not found", name)
+	}
+
+	if err := os.RemoveAll(instToRemove.Path); err != nil {
+		return fmt.Errorf("removing instance directory %s: %w", instToRemove.Path, err)
+	}
+
+	if err := removeFromRegistry(name); err != nil {
+		return fmt.Errorf("removing instance %q from registry: %w", name, err)
+	}
+
+	return nil
+}
+
 func scanDir(root string) ([]Instance, error) {
 	entries, err := os.ReadDir(root)
 	if os.IsNotExist(err) {

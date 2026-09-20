@@ -31,6 +31,13 @@ func createInstanceCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if version == "" {
+				release, err := versions.FindLatestRelease(releases, currentPlatform)
+				if err != nil {
+					return err
+				}
+				version = release.Version
+			}
 			release, err := versions.FindRelease(releases, version, currentPlatform)
 			if err != nil {
 				return err
@@ -49,9 +56,8 @@ func createInstanceCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&channel, "channel", "c", "", "Release channel (stable, unstable)")
-	cmd.Flags().StringVarP(&version, "version", "v", "", "Version to install (required)")
+	cmd.Flags().StringVarP(&version, "version", "v", "", "Version to install (optional, defaults to latest in channel)")
 	cmd.Flags().StringVarP(&customPath, "path", "p", "", "Custom path for this particular instance outside the default location (optional)")
-	cmd.MarkFlagRequired("version")
 
 	return cmd
 }
@@ -91,8 +97,31 @@ func listInstancesCmd() *cobra.Command {
 	return cmd
 }
 
+func removeInstanceCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "remove <name>",
+		Short: "Remove an instance",
+		Long:  "Remove an instance by name, including its directory and registry entry.",
+		Args:  cobra.ExactArgs(1),
+		Aliases: []string{"rm"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+
+			if err := instance.Remove(name); err != nil {
+				return fmt.Errorf("removing instance %q: %w", name, err)
+			}
+
+			fmt.Printf("instance %q removed successfully\n", name)
+			return nil
+		},
+	}
+
+	return cmd
+}
+
 func init() {
 	instanceCmd.AddCommand(createInstanceCmd())
 	instanceCmd.AddCommand(listInstancesCmd())
+	instanceCmd.AddCommand(removeInstanceCmd())
 	rootCmd.AddCommand(instanceCmd)
 }

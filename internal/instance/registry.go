@@ -63,3 +63,40 @@ func loadRegistry() ([]registryEntry, error) {
 
 	return entries, nil
 }
+
+func removeFromRegistry(name string) error {
+	entries, err := loadRegistry()
+	if err != nil {
+		return err
+	}
+
+	filtered := entries[:0]
+	for _, entry := range entries {
+		if entry.Name != name {
+			filtered = append(filtered, entry)
+		}
+	}
+
+	registryPath, err := registryPath()
+	if err != nil {
+		return err
+	}
+
+	if len(filtered) == 0 {
+		if err := os.Remove(registryPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("removing registry file: %w", err)
+		}
+		return nil
+	}
+
+	data, err := json.MarshalIndent(filtered, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(registryPath, data, 0644); err != nil {
+		return fmt.Errorf("writing registry file: %w", err)
+	}
+
+	return nil
+}

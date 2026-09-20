@@ -147,3 +147,20 @@ func FindRelease(releases []Release, version string, platform string) (Release, 
 	}
 	return Release{}, fmt.Errorf("release not found for version %q and platform %q", version, platform)
 }
+
+func FindLatestRelease(releases []Release, platform string) (Release, error) {
+	var latest Release
+	found := false
+	for _, r := range releases {
+		if strings.EqualFold(r.Platform, platform) {
+			if !found || semver.Compare("v"+r.Version, "v"+latest.Version) > 0 {
+				latest = r
+				found = true
+			}
+		}
+	}
+	if !found {
+		return Release{}, fmt.Errorf("no releases found for platform %q", platform)
+	}
+	return latest, nil
+}	
