@@ -52,7 +52,7 @@ func Create(ctx context.Context, name string, release versions.Release, customPa
 	}
 
 	if isCustomPath {
-		if err := addToRegistry(name, instanceDir, release.Version); err != nil {
+		if err := addToRegistry(name, instanceDir); err != nil {
 			return nil, fmt.Errorf("adding instance %q to registry: %w", name, err)
 		}
 		fmt.Fprintf(os.Stderr,
@@ -62,6 +62,83 @@ func Create(ctx context.Context, name string, release versions.Release, customPa
 	}
 
 	return inst, nil
+}
+
+func List() ([]Instance, error) {
+	root, err := defaultInstancesRoot()
+	if err != nil {
+		return nil, err
+	}
+
+	instances, err := scanDir(root)
+	if err != nil {
+		return nil, err
+	}
+
+	knownPaths := make(map[string]bool, len(instances))
+	for _, inst := range instances {
+		knownPaths[inst.Path] = true
+	}
+
+	entries, err := loadRegistry()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not read registry, custom-path instances may be missing: %v\n", err)
+		return instances, nil
+	}
+
+	for _, entry := range entries {
+		if knownPaths[entry.Path] {
+			continue
+		}
+		inst, err := load(entry.Path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to load instance %q from registry path %s: %v\n", entry.Name, entry.Path, err)
+			continue
+		}
+		instances = append(instances, *inst)
+		knownPaths[entry.Path] = true
+	}
+	
+	return instances, nil
+}
+
+func scanDir(root string) ([]Instance, error) {
+	entries, err := os.ReadDir(root)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading instances root %s: %w", root, err)
+	}
+
+	var instances []Instance
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		instPath := filepath.Join(root, entry.Name())
+		inst, err := load(instPath)
+		if err != nil {
+			continue
+		}
+		instances = append(instances, *inst)
+	}
+
+	return instances, nil
+}
+
+func load(path string) (*Instance, error) {
+	data, err := os.ReadFile(filepath.Join(path, "instance.json"))
+	if err != nil {
+		return nil, fmt.Errorf("reading instance metadata: %w", err)
+	}
+
+	var inst Instance
+	if err := json.Unmarshal(data, &inst); err != nil {
+		return nil, fmt.Errorf("parsing instance metadata: %w", err)
+	}
+
+	return &inst, nil
 }
 
 func save(inst *Instance) error {

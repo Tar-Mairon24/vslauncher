@@ -18,6 +18,8 @@ var channelURLs = map[string]string{
 var versionsCmd = &cobra.Command{
 	Use:   "versions",
 	Short: "Manage and inspect Vintage Story versions",
+	Long:  "Manage and inspect Vintage Story versions, including listing available versions and filtering by channel, operation, and platform.",
+	Aliases: []string{"ver", "v"},
 }
 
 var validPlatforms = map[string]bool{

@@ -27,7 +27,6 @@ func Execute() {
 		fmt.Fprintf(os.Stderr, "Error detecting platform: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("Detected platform: %s\n", p)
 	currentPlatform = p
 
 	if err := rootCmd.Execute(); err != nil {

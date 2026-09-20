@@ -6,7 +6,6 @@ import (
 )
 
 func Detect() (string, error) {
-	fmt.Printf("running on %s/%s", runtime.GOOS, runtime.GOARCH)
 	switch runtime.GOOS {
 	case "linux":
 		return "linux", nil

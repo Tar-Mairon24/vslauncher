@@ -15,7 +15,7 @@ func registryPath() (string, error) {
 	return filepath.Join(root, "registry.json"), nil
 }
 
-func addToRegistry(name, path string, version string) error {
+func addToRegistry(name, path string) error {
 	entries, err := loadRegistry()
 	if err != nil {
 		return err
@@ -24,7 +24,6 @@ func addToRegistry(name, path string, version string) error {
 	entries = append(entries, registryEntry{
 		Name:    name,
 		Path:    path,
-		Version: version,
 	})
 
 	registryPath, err := registryPath()
