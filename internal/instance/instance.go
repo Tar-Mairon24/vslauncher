@@ -12,16 +12,26 @@ import (
 	"github.com/Tar-Mairon24/vslauncher/internal/versions"
 )
 
-func Create(ctx context.Context, name string, release versions.Release) (*Instance, error) {
-	instancesRoot, err := defaultInstancesRoot()
-	if err != nil {
-		return nil, err
+func Create(ctx context.Context, name string, release versions.Release, customPath string) (*Instance, error) {
+	var instancesRoot string
+	var err error
+	isCustomPath := customPath != ""
+
+	if isCustomPath {
+		instancesRoot = customPath
+	} else {
+		instancesRoot, err = defaultInstancesRoot()
+		if err != nil {
+			return nil, err
+		}
 	}
-	
+
 	instanceDir := filepath.Join(instancesRoot, name)
 
-	if _, err := os.Stat(instanceDir); !os.IsNotExist(err) {
+	if _, err := os.Stat(instanceDir); err == nil {
 		return nil, fmt.Errorf("instance %q already exists at %s", name, instanceDir)
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("checking instance path %s: %w", instanceDir, err)
 	}
 
 	if err := download.FetchAndExtract(ctx, release, instanceDir); err != nil {
@@ -39,6 +49,16 @@ func Create(ctx context.Context, name string, release versions.Release) (*Instan
 
 	if err := save(inst); err != nil {
 		return nil, fmt.Errorf("saving instance %q metadata: %w", name, err)
+	}
+
+	if isCustomPath {
+		if err := addToRegistry(name, instanceDir, release.Version); err != nil {
+			return nil, fmt.Errorf("adding instance %q to registry: %w", name, err)
+		}
+		fmt.Fprintf(os.Stderr,
+			"warning: %q is tracked via a separate registry file, not the default instances folder.\n"+
+				"If the registry is lost or corrupted, this instance may not show up when listing instances.\n"+
+				"even though its files remain on disk at %s.\n", name, instanceDir)
 	}
 
 	return inst, nil

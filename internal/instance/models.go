@@ -10,3 +10,9 @@ type Instance struct {
 	Path        string    `json:"path"`
 	InstalledAt time.Time `json:"installed_at"`
 }
+
+type registryEntry struct {
+	Name 	  string    `json:"name"`
+	Path	  string    `json:"path"`
+	Version   string    `json:"version"`
+}

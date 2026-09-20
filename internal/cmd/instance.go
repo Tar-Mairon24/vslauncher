@@ -15,7 +15,7 @@ var instanceCmd = &cobra.Command{
 }
 
 func createInstanceCmd() *cobra.Command {
-	var channel, version string
+	var channel, version, customPath string
 
 	cmd := &cobra.Command{
 		Use:   "create <name>",
@@ -36,7 +36,7 @@ func createInstanceCmd() *cobra.Command {
 
 			fmt.Printf("installing %s (%s) into instance %q \n", release.Version, release.Channel, name)
 
-			inst, err := instance.Create(cmd.Context(), name, release)
+			inst, err := instance.Create(cmd.Context(), name, release, customPath)
 			if err != nil {
 				return err
 			}
@@ -48,6 +48,7 @@ func createInstanceCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&channel, "channel", "c", "", "Release channel (stable, unstable)")
 	cmd.Flags().StringVarP(&version, "version", "v", "", "Version to install (required)")
+	cmd.Flags().StringVarP(&customPath, "path", "p", "", "Custom path for this particular instance outside the default location (optional)")
 	cmd.MarkFlagRequired("version")
 
 	return cmd

@@ -121,12 +121,21 @@ func extractTarGz(archivePath, destDir string) error {
 			return err
 		}
 
-		targetPath := filepath.Join(destDir, header.Name)
+		relativePath, ok := stripFirstComponent(header.Name)
+		if !ok {
+			continue
+		}
+
+		targetPath := filepath.Join(destDir, relativePath)
 		switch header.Typeflag {
 		case tar.TypeDir:
-			os.MkdirAll(targetPath, 0755)
+			if err := os.MkdirAll(targetPath, 0755); err != nil {
+				return err
+			}
 		case tar.TypeReg:
-			os.MkdirAll(filepath.Dir(targetPath), 0755)
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+				return err
+			}
 			out, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY, os.FileMode(header.Mode))
 			if err != nil {
 				return err
@@ -140,4 +149,17 @@ func extractTarGz(archivePath, destDir string) error {
 			return fmt.Errorf("unsupported file type in archive: %v", header.Typeflag)
 		}
 	}
+}
+
+func stripFirstComponent(name string) (string, bool) {
+	name = strings.TrimPrefix(name, "/")
+	idx := strings.Index(name, "/")
+	if idx == -1 {
+		return "", false
+	}
+	rest := name[idx+1:]
+	if rest == "" {
+		return "", false
+	}
+	return rest, true
 }
