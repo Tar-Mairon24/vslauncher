@@ -24,6 +24,7 @@ type Release struct {
 	DownloadURL  string `json:"download_url"`
 	Checksum     string `json:"checksum"`
 	ChecksumAlgo string `json:"checksum_algo"`
-	DownloadSize int64  `json:"download_size"`
+	DownloadSize int64  `json:"-"`
+	FileSizeHuman string `json:"file_size"`
 	Latest       bool   `json:"latest"`
 }

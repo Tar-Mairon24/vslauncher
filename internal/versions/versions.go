@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -36,14 +35,13 @@ func FetchReleases(ctx context.Context, url, channel string) ([]Release, error) 
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
 		return nil, fmt.Errorf("decoding versions response: %w", err)
 	}
-	log.Printf("decoded %d versions", len(raw))
 
 	var releases []Release
 	for versionStr, platforms := range raw {
 		for platform, pf := range platforms {
 			size, err := parseFileSize(pf.FileSize)
 			if err != nil {
-				log.Printf("skipping %s/%s: %v", versionStr, platform, err)
+				fmt.Printf("skipping %s/%s: %v", versionStr, platform, err)
 				continue
 			}
 			releases = append(releases, Release{
@@ -55,6 +53,7 @@ func FetchReleases(ctx context.Context, url, channel string) ([]Release, error) 
 				Checksum:     pf.MD5,
 				ChecksumAlgo: "md5",
 				DownloadSize: size,
+				FileSizeHuman: pf.FileSize,
 				Latest:       pf.Latest == 1,
 			})
 		}
@@ -92,7 +91,7 @@ func SortReleasesByVersion(releases []Release, operation string) {
 
 	for _, r := range releases {
 		if !semver.IsValid("v" + r.Version) {
-			log.Printf("warning: %q is not valid semver, sort order may be wrong", r.Version)
+			fmt.Printf("warning: %q is not valid semver, sort order may be wrong", r.Version)
 		}
 	}
 
@@ -138,4 +137,13 @@ func FilterReleasesByChannel(releases []Release, channel string) []Release {
 		}
 	}
 	return filtered
+}
+
+func FindRelease(releases []Release, version string, platform string) (Release, error) {
+	for _, r := range releases {
+		if r.Version == version && strings.EqualFold(r.Platform, platform) {
+			return r, nil
+		}
+	}
+	return Release{}, fmt.Errorf("release not found for version %q and platform %q", version, platform)
 }

@@ -65,6 +65,7 @@ func resolveReleases(channel, operation, platform string) ([]versions.Release, e
 func listCmd() *cobra.Command {
 	var channel, operation, platform string
 	var verbose bool
+	var head int
 	cmd := &cobra.Command{
 		Use:   "list [-c channel] [-o operation] [-p platform]",
 		Short: "List available Vintage Story versions",
@@ -74,6 +75,11 @@ func listCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
+			if head > 0 && head < len(releases) {
+				releases = releases[:head]
+			}
+			
 			if verbose {
 				releasesJSON, err := json.MarshalIndent(releases, "", "  ")
 				if err != nil {
@@ -92,6 +98,7 @@ func listCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&operation, "operation", "o", "desc", "sort order (asc or desc)")
 	cmd.Flags().StringVarP(&platform, "platform", "p", "", "target platform")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show detailed release information")
+	cmd.Flags().IntVarP(&head, "head", "n", 0, "show only the first N releases")
 	return cmd
 }
 
