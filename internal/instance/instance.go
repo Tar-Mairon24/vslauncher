@@ -12,7 +12,12 @@ import (
 	"github.com/Tar-Mairon24/vslauncher/internal/versions"
 )
 
-func Create(ctx context.Context, instancesRoot, name string, release versions.Release) (*Instance, error) {
+func Create(ctx context.Context, name string, release versions.Release) (*Instance, error) {
+	instancesRoot, err := defaultInstancesRoot()
+	if err != nil {
+		return nil, err
+	}
+	
 	instanceDir := filepath.Join(instancesRoot, name)
 
 	if _, err := os.Stat(instanceDir); !os.IsNotExist(err) {
@@ -47,4 +52,17 @@ func save(inst *Instance) error {
 
 	metaPath := filepath.Join(inst.Path, "instance.json")
 	return os.WriteFile(metaPath, data, 0644)
+}
+
+func defaultInstancesRoot() (string, error) {
+	dataHome := os.Getenv("XDG_DATA_HOME")
+	if dataHome == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("getting user home directory: %w", err)
+		}
+		dataHome = filepath.Join(homeDir, ".local", "share")
+	}
+
+	return filepath.Join(dataHome, "vslauncher", "instances"), nil
 }

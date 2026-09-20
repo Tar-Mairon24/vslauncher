@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -17,7 +15,7 @@ var instanceCmd = &cobra.Command{
 }
 
 func createInstanceCmd() *cobra.Command {
-	var channel, version, platform string
+	var channel, version string
 
 	cmd := &cobra.Command{
 		Use:   "create <name>",
@@ -27,23 +25,18 @@ func createInstanceCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 
-			releases, err := resolveReleases(channel, "asc", platform)
+			releases, err := resolveReleases(channel, "asc", currentPlatform)
 			if err != nil {
 				return err
 			}
-			release, err := versions.FindRelease(releases, version, platform)
-			if err != nil {
-				return err
-			}
-
-			instancesRoot, err := defaultInstancesRoot()
+			release, err := versions.FindRelease(releases, version, currentPlatform)
 			if err != nil {
 				return err
 			}
 
 			fmt.Printf("installing %s (%s) into instance %q \n", release.Version, release.Channel, name)
 
-			inst, err := instance.Create(cmd.Context(), instancesRoot, name, release)
+			inst, err := instance.Create(cmd.Context(), name, release)
 			if err != nil {
 				return err
 			}
@@ -55,23 +48,9 @@ func createInstanceCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&channel, "channel", "c", "", "Release channel (stable, unstable)")
 	cmd.Flags().StringVarP(&version, "version", "v", "", "Version to install (required)")
-	cmd.Flags().StringVarP(&platform, "platform", "p", "", "Platform to install (default: current platform)")
 	cmd.MarkFlagRequired("version")
 
 	return cmd
-}
-
-func defaultInstancesRoot() (string, error) {
-	dataHome := os.Getenv("XDG_DATA_HOME")
-	if dataHome == "" {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("getting user home directory: %w", err)
-		}
-		dataHome = filepath.Join(homeDir, ".local", "share")
-	}
-
-	return filepath.Join(dataHome, "vslauncher", "instances"), nil
 }
 
 func init() {

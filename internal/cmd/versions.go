@@ -63,7 +63,7 @@ func resolveReleases(channel, operation, platform string) ([]versions.Release, e
 }
 
 func listCmd() *cobra.Command {
-	var channel, operation, platform string
+	var channel, operation string
 	var verbose bool
 	var head int
 	cmd := &cobra.Command{
@@ -71,7 +71,7 @@ func listCmd() *cobra.Command {
 		Short: "List available Vintage Story versions",
 		Long:  "List available Vintage Story versions, optionally filtered by channel, operation, and platform.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			releases, err := resolveReleases(channel, operation, platform)
+			releases, err := resolveReleases(channel, operation, currentPlatform)
 			if err != nil {
 				return err
 			}
@@ -96,7 +96,6 @@ func listCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&channel, "channel", "c", "", "release channel (stable or unstable)")
 	cmd.Flags().StringVarP(&operation, "operation", "o", "desc", "sort order (asc or desc)")
-	cmd.Flags().StringVarP(&platform, "platform", "p", "", "target platform")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show detailed release information")
 	cmd.Flags().IntVarP(&head, "head", "n", 0, "show only the first N releases")
 	return cmd
