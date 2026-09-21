@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -10,10 +13,10 @@ import (
 )
 
 var instanceCmd = &cobra.Command{
-	Use:   "instance",
-	Short: "Manage Vintage Story instances",
+	Use:     "instance",
+	Short:   "Manage Vintage Story instances",
 	Aliases: []string{"inst", "i"},
-	Long:  "Manage Vintage Story instances, including creating, listing, updating, and removing instances.",
+	Long:    "Manage Vintage Story instances, including creating, listing, updating, and removing instances.",
 }
 
 func createInstanceCmd() *cobra.Command {
@@ -70,9 +73,9 @@ func listInstancesCmd() *cobra.Command {
 	var verbose bool
 
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List all instances",
-		Long:  "List all instances, including those in the default location and any custom paths.",
+		Use:     "list",
+		Short:   "List all instances",
+		Long:    "List all instances, including those in the default location and any custom paths.",
 		Aliases: []string{"ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			instances, err := instance.List()
@@ -102,14 +105,28 @@ func listInstancesCmd() *cobra.Command {
 }
 
 func removeInstanceCmd() *cobra.Command {
+	var force bool
 	cmd := &cobra.Command{
-		Use:   "remove <name>",
-		Short: "Remove an instance",
-		Long:  "Remove an instance by name, including its directory and registry entry.",
-		Args:  cobra.ExactArgs(1),
+		Use:     "remove <name>",
+		Short:   "Remove an instance",
+		Long:    "Remove an instance by name, including its directory and registry entry.",
+		Args:    cobra.ExactArgs(1),
 		Aliases: []string{"rm"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
+			var confirmed bool
+			var err error
+
+			if !force {
+				confirmed, err = confirm(fmt.Sprintf("Are you sure you want to remove the instance and all its data %q? This action cannot be undone ", name))
+				if err != nil {
+					return fmt.Errorf("confirming removal of instance %q: %w", name, err)
+				}
+				if !confirmed {
+					fmt.Printf("instance %q removal cancelled.\n", name)
+					return nil
+				}
+			}
 
 			if err := instance.Remove(name); err != nil {
 				return fmt.Errorf("removing instance %q: %w", name, err)
@@ -120,6 +137,7 @@ func removeInstanceCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force removal without confirmation")
 	return cmd
 }
 
@@ -170,6 +188,17 @@ func updateInstanceCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&version, "version", "v", "", "Version to update to (optional, defaults to latest in channel)")
 
 	return cmd
+}
+
+func confirm(prompt string) (bool, error) {
+	fmt.Fprintf(os.Stderr, "%s[y/N]: ", prompt)
+	reader := bufio.NewReader(os.Stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return false, fmt.Errorf("reading confirmation %w", err)
+	}
+	line = strings.ToLower(strings.TrimSpace(line))
+	return line == "y" || line == "yes", nil
 }
 
 func init() {

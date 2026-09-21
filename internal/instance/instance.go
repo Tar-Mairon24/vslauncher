@@ -169,7 +169,8 @@ func Update(name string, newRelease versions.Release) error {
 
 	instToUpdate.Version = newRelease.Version
 	instToUpdate.Channel = newRelease.Channel
-	instToUpdate.UpdatedAt = time.Now()
+	now := time.Now()
+	instToUpdate.UpdatedAt = &now
 	return save(instToUpdate)
 }
 

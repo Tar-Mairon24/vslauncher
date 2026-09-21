@@ -10,7 +10,14 @@ import (
 	"github.com/Tar-Mairon24/vslauncher/internal/instance"
 )
 
-func LaunchInstance(ctx context.Context, inst *instance.Instance) error {
+func LaunchInstance(ctx context.Context, inst *instance.Instance, options Options) error {
+	if inst.DataPath == "" {
+		return fmt.Errorf("instance %q has no data path set", inst.Name)
+	}
+	if err := os.MkdirAll(inst.DataPath, 0755); err != nil {
+		return fmt.Errorf("creating data directory: %w", err)
+	}
+
 	dir := filepath.Join(inst.Path, "vintagestory")
 
 	binary := filepath.Join(dir, "Vintagestory")
@@ -25,7 +32,7 @@ func LaunchInstance(ctx context.Context, inst *instance.Instance) error {
 		}
 	}
 
-	args := []string{"--dataPath", inst.DataPath}
+	args := buildArgs(inst, options)
 
 	cmd := exec.CommandContext(ctx, binary, args...)
 	cmd.Dir = dir
@@ -38,4 +45,34 @@ func LaunchInstance(ctx context.Context, inst *instance.Instance) error {
 		return fmt.Errorf("running instance %q: %w", inst.Name, err)
 	}
 	return nil
+}
+
+func buildArgs(inst *instance.Instance, options Options) []string {
+	args := []string{"--dataPath", inst.DataPath}
+
+	if options.World != "" {
+		args = append(args, "--openWorld", options.World)
+	}
+	
+	if options.Connect != "" {
+		args = append(args, "--connect", options.Connect)
+	}
+
+	if options.Password != "" {
+		args = append(args, "--password", options.Password)
+	}
+
+	if options.RandomWorld {
+		args = append(args, "--rndmWorld")
+	}
+
+	if options.PlayStyle != "" {
+		args = append(args, "--playStyle", options.PlayStyle)
+	}
+
+	if options.InstallMod != "" {
+		args = append(args, "--installMod", options.InstallMod)
+	}
+	
+	return args
 }

@@ -10,7 +10,7 @@ type Instance struct {
 	Path        string    `json:"path"`
 	DataPath    string    `json:"data_path"`
 	InstalledAt time.Time `json:"installed_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
 }
 
 type registryEntry struct {
