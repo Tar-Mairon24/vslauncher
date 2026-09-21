@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -27,6 +28,8 @@ func Execute() {
 		os.Exit(1)
 	}
 	currentPlatform = p
+
+	rootCmd.SetUsageTemplate(strings.ReplaceAll(rootCmd.UsageTemplate(), "Flags:", "Options:"))
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)

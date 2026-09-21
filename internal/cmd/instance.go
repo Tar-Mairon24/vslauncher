@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
@@ -21,6 +22,7 @@ var instanceCmd = &cobra.Command{
 
 func createInstanceCmd() *cobra.Command {
 	var channel, version, customPath string
+	var desktopFile bool
 
 	cmd := &cobra.Command{
 		Use:   "create <name>",
@@ -52,7 +54,7 @@ func createInstanceCmd() *cobra.Command {
 
 			fmt.Printf("installing %s (%s) into instance %q \n", release.Version, release.Channel, name)
 
-			inst, err := instance.Create(cmd.Context(), name, release, customPath)
+			inst, err := instance.Create(cmd.Context(), name, release, customPath, desktopFile)
 			if err != nil {
 				return err
 			}
@@ -65,6 +67,7 @@ func createInstanceCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&channel, "channel", "c", "", "Release channel (stable, unstable), defaults to stable")
 	cmd.Flags().StringVarP(&version, "version", "v", "", "Version to install (optional, defaults to latest in channel)")
 	cmd.Flags().StringVarP(&customPath, "path", "p", "", "Custom path for this particular instance outside the default location (optional)")
+	cmd.Flags().BoolVarP(&desktopFile, "desktop-file", "d", false, "Create a desktop file for this instance (Linux only for now) (optional)")
 
 	return cmd
 }
@@ -88,14 +91,21 @@ func listInstancesCmd() *cobra.Command {
 				return nil
 			}
 
-			for _, inst := range instances {
-				if verbose {
-					fmt.Printf("%s - %s (%s) at %s (installed: %s)\n", inst.Name, inst.Version, inst.Channel, inst.Path, inst.InstalledAt)
-				} else {
-					fmt.Printf("%s - %s (%s)\n", inst.Name, inst.Version, inst.Channel)
+			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+			if verbose {
+				fmt.Fprintln(w, "NAME\tVERSION\tCHANNEL\tPATH\tINSTALLED")
+				for _, inst := range instances {
+					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+						inst.Name, inst.Version, inst.Channel, inst.Path,
+						inst.InstalledAt.Format("2006-01-02 15:04"))
+				}
+			} else {
+				fmt.Fprintln(w, "NAME\tVERSION\tCHANNEL")
+				for _, inst := range instances {
+					fmt.Fprintf(w, "%s\t%s\t%s\n", inst.Name, inst.Version, inst.Channel)
 				}
 			}
-			return nil
+			return w.Flush()
 		},
 	}
 
@@ -164,7 +174,7 @@ func updateInstanceCmd() *cobra.Command {
 				}
 				version = release.Version
 			}
-			if channel != "" {
+			if channel == "" {
 				channel = "stable"
 			}
 

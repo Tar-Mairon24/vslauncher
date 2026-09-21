@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 	"github.com/Tar-Mairon24/vslauncher/internal/versions"
 )
 
-func Create(ctx context.Context, name string, release versions.Release, customPath string) (*Instance, error) {
+func Create(ctx context.Context, name string, release versions.Release, customPath string, createDesktopFile bool) (*Instance, error) {
 	var instancesRoot string
 	var err error
 	isCustomPath := customPath != ""
@@ -50,7 +51,16 @@ func Create(ctx context.Context, name string, release versions.Release, customPa
 		Platform:    release.Platform,
 		Path:        instanceDir,
 		DataPath:    filepath.Join(instanceDir, "data"),
+		IconPath:    resolveIconPath(instanceDir),
 		InstalledAt: time.Now(),
+	}
+
+	if createDesktopFile {
+		desktopPath, err := CreateDesktopFile(inst)
+		if err != nil {
+			return nil, fmt.Errorf("creating desktop file: %w", err)
+		}
+		inst.DesktopPath = desktopPath
 	}
 
 	if err := save(inst); err != nil {
@@ -119,7 +129,11 @@ func Remove(name string) error {
 	}
 
 	if err := removeFromRegistry(name); err != nil {
-		return fmt.Errorf("removing instance %q from registry: %w", name, err)
+		fmt.Fprintf(os.Stderr, "warning: instance files removed, but could not clean up registry entry: %v\n", err)
+	}
+
+	if err := removeDesktopFile(instToRemove); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: instance files removed, but could not remove desktop file: %v\n", err)
 	}
 
 	return nil
@@ -172,6 +186,66 @@ func Update(name string, newRelease versions.Release) error {
 	now := time.Now()
 	instToUpdate.UpdatedAt = &now
 	return save(instToUpdate)
+}
+
+func CreateDesktopFile(inst *Instance) (string, error) {
+	if inst.Platform != "linux" {
+		return "", fmt.Errorf("desktop file creation is only supported on Linux")
+	}
+
+	linuxDesktopPath, err := desktopFileDir()
+	if err != nil {
+		return "", fmt.Errorf("getting desktop file directory: %w", err)
+	}
+	if err := os.MkdirAll(linuxDesktopPath, 0755); err != nil {
+		return "", fmt.Errorf("creating desktop file directory: %w", err)
+	}
+	desktopPath := filepath.Join(linuxDesktopPath, fmt.Sprintf("vslauncher-%s.desktop", inst.Name))
+	
+	file, err := os.Create(desktopPath)
+	if err != nil {
+		return "", fmt.Errorf("creating desktop file: %w", err)
+	}
+	defer file.Close()
+
+	inst.DesktopPath = desktopPath
+	
+	data := desktopData{Instance: inst, BinaryPath: filepath.Join(inst.Path, "vintagestory", "Vintagestory")}
+	if err := desktopLinuxTemplate.Execute(file, data); err != nil {
+		return "", fmt.Errorf("writing desktop file: %w", err)
+	}
+
+	return desktopPath, nil
+}
+
+func resolveIconPath(instanceDir string) string {
+	assetsDir := filepath.Join(instanceDir, "vintagestory", "assets")
+
+	pngPath := filepath.Join(assetsDir, "gameicon.png")
+	if _, err := os.Stat(pngPath); err == nil {
+		return pngPath
+	}
+
+	xpmPath := filepath.Join(assetsDir, "gameicon.xpm")
+	if _, err := os.Stat(xpmPath); err == nil {
+		convertedPath := filepath.Join(assetsDir, "gameicon-converted.png")
+		if err := convertXPMtoPNG(xpmPath, convertedPath); err == nil {
+			return convertedPath
+		}
+		return xpmPath
+	}
+
+	return ""
+}
+
+func removeDesktopFile(inst *Instance) error {
+	if inst.DesktopPath == "" {
+		return nil
+	}
+	if err := os.Remove(inst.DesktopPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("removing desktop file: %w", err)
+	}
+	return nil
 }
 
 func scanDir(root string) ([]Instance, error) {
@@ -243,6 +317,18 @@ func save(inst *Instance) error {
 	return os.WriteFile(metaPath, data, 0644)
 }
 
+func desktopFileDir() (string, error) {
+	dataHome := os.Getenv("XDG_DATA_HOME")
+	if dataHome == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		dataHome = filepath.Join(home, ".local", "share")
+	}
+	return filepath.Join(dataHome, "applications"), nil
+}
+
 func defaultInstancesRoot() (string, error) {
 	dataHome := os.Getenv("XDG_DATA_HOME")
 	if dataHome == "" {
@@ -254,4 +340,18 @@ func defaultInstancesRoot() (string, error) {
 	}
 
 	return filepath.Join(dataHome, "vslauncher", "instances"), nil
+}
+
+func convertXPMtoPNG(xpmPath, pngPath string) error {
+	converter := "convert"
+	if _, err := exec.LookPath("magick"); err == nil {
+		converter = "magick"
+	} else if _, err := exec.LookPath("convert"); err != nil {
+		return fmt.Errorf("no image converter (convert/magick) found on PATH")
+	}
+	cmd := exec.Command(converter, xpmPath, pngPath)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("converting xpm to png: %w", err)
+	}
+	return nil
 }
