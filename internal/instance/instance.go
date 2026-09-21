@@ -3,6 +3,7 @@ package instance
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,10 +29,10 @@ func Create(ctx context.Context, name string, release versions.Release, customPa
 
 	instanceDir := filepath.Join(instancesRoot, name)
 
-	if _, err := os.Stat(instanceDir); err == nil {
-		return nil, fmt.Errorf("instance %q already exists at %s", name, instanceDir)
-	} else if !os.IsNotExist(err) {
-		return nil, fmt.Errorf("checking instance path %s: %w", instanceDir, err)
+	if _, err := FindByName(name); err == nil {
+		return nil, fmt.Errorf("instance %q already exists", name)
+	} else if !errors.Is(err, ErrNotFound) {
+		return nil, fmt.Errorf("checking for existing instance: %w", err)
 	}
 
 	if err := download.FetchAndExtract(ctx, release, instanceDir); err != nil {
@@ -108,7 +109,7 @@ func List() ([]Instance, error) {
 }
 
 func Remove(name string) error {
-	instToRemove, err := findByName(name)
+	instToRemove, err := FindByName(name)
 	if err != nil {
 		return err
 	}
@@ -125,26 +126,50 @@ func Remove(name string) error {
 }
 
 func Update(name string, newRelease versions.Release) error {
-	instToUpdate, err := findByName(name)
+	instToUpdate, err := FindByName(name)
 	if err != nil {
 		return err
 	}
 
 	gameDir := filepath.Join(instToUpdate.Path, "vintagestory")
+	oldDir := filepath.Join(instToUpdate.Path, ".vintagestory.old")
 
-	if err := os.RemoveAll(gameDir); err != nil {
-		return fmt.Errorf("removing old game files: %w", err)
+	if err := os.RemoveAll(oldDir); err != nil {
+		return fmt.Errorf("removing stale backup directory: %w", err)
 	}
 
-	if err := download.FetchAndExtract(context.Background(), newRelease, instToUpdate.Path); err != nil {
+	tmpParent, err := os.MkdirTemp(instToUpdate.Path, "vslauncher-update-*")
+	if err != nil {
+		return fmt.Errorf("creating temporary directory for update: %w", err)
+	}
+	defer os.RemoveAll(tmpParent)
+
+	if err := download.FetchAndExtract(context.Background(), newRelease, tmpParent); err != nil {
 		return fmt.Errorf("downloading and extracting new release: %w", err)
+	}
+
+	extracted := filepath.Join(tmpParent, "vintagestory")
+	if _, err := os.Stat(extracted); os.IsNotExist(err) {
+		return fmt.Errorf("extracted release does not contain expected 'vintagestory' directory")
+	} else if err != nil {
+		return fmt.Errorf("checking extracted release: %w", err)
+	}
+
+	if err := os.Rename(gameDir, oldDir); err != nil {
+		return fmt.Errorf("staging old game files: %w", err)
+	}
+	if err := os.Rename(extracted, gameDir); err != nil {
+		os.Rename(oldDir, gameDir)
+		return fmt.Errorf("installing new game files: %w", err)
+	}
+
+	if err := os.RemoveAll(oldDir); err != nil {
+		return fmt.Errorf("removing old game files: %w", err)
 	}
 
 	instToUpdate.Version = newRelease.Version
 	instToUpdate.Channel = newRelease.Channel
-	instToUpdate.DataPath = filepath.Join(instToUpdate.Path, "data")
 	instToUpdate.UpdatedAt = time.Now()
-
 	return save(instToUpdate)
 }
 
@@ -187,7 +212,7 @@ func load(path string) (*Instance, error) {
 	return &inst, nil
 }
 
-func findByName(name string) (*Instance, error) {
+func FindByName(name string) (*Instance, error) {
 	instances, err := List()
 	if err != nil {
 		return nil, fmt.Errorf("listing instances: %w", err)
@@ -202,7 +227,7 @@ func findByName(name string) (*Instance, error) {
 	}
 
 	if instToFind == nil {
-		return nil, fmt.Errorf("instance %q not found", name)
+		return nil, fmt.Errorf("instance %q: %w", name, ErrNotFound)
 	}
 	return instToFind, nil
 }

@@ -14,7 +14,6 @@ var rootCmd = &cobra.Command{
 	Short: "Vintage Story Launcher CLI",
 	Long:  `A command-line interface for the Vintage Story Launcher`,
 	SilenceErrors: true,
-	SilenceUsage:  true,
 	DisableAutoGenTag: true,
 	Version: "0.1.0",
 }

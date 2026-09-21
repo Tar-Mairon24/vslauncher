@@ -27,6 +27,10 @@ func createInstanceCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 
+			if channel == "" {
+				channel = "stable"
+			}
+
 			releases, err := resolveReleases(channel, "asc", currentPlatform)
 			if err != nil {
 				return err
@@ -55,7 +59,7 @@ func createInstanceCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&channel, "channel", "c", "", "Release channel (stable, unstable)")
+	cmd.Flags().StringVarP(&channel, "channel", "c", "", "Release channel (stable, unstable), defaults to stable")
 	cmd.Flags().StringVarP(&version, "version", "v", "", "Version to install (optional, defaults to latest in channel)")
 	cmd.Flags().StringVarP(&customPath, "path", "p", "", "Custom path for this particular instance outside the default location (optional)")
 
@@ -119,9 +123,59 @@ func removeInstanceCmd() *cobra.Command {
 	return cmd
 }
 
+func updateInstanceCmd() *cobra.Command {
+	var channel, version string
+
+	cmd := &cobra.Command{
+		Use:   "update <name>",
+		Short: "Update an instance to a new version",
+		Long:  "Update an instance to a new version, leave empty to update to the latest version in the specified channel.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+
+			releases, err := resolveReleases(channel, "asc", currentPlatform)
+			if err != nil {
+				return err
+			}
+
+			if version == "" {
+				release, err := versions.FindLatestRelease(releases, currentPlatform)
+				if err != nil {
+					return err
+				}
+				version = release.Version
+			}
+			if channel != "" {
+				channel = "stable"
+			}
+
+			release, err := versions.FindRelease(releases, version, currentPlatform)
+			if err != nil {
+				return fmt.Errorf("finding release %q for platform %q: %w", version, currentPlatform, err)
+			}
+
+			fmt.Printf("updating instance %q to version %s (%s)\n", name, release.Version, release.Channel)
+
+			if err := instance.Update(name, release); err != nil {
+				return fmt.Errorf("updating instance %q: %w", name, err)
+			}
+
+			fmt.Printf("instance %q updated successfully to version %s\n", name, release.Version)
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&channel, "channel", "c", "", "Release channel (stable, unstable), defaults to stable")
+	cmd.Flags().StringVarP(&version, "version", "v", "", "Version to update to (optional, defaults to latest in channel)")
+
+	return cmd
+}
+
 func init() {
 	instanceCmd.AddCommand(createInstanceCmd())
 	instanceCmd.AddCommand(listInstancesCmd())
+	instanceCmd.AddCommand(updateInstanceCmd())
 	instanceCmd.AddCommand(removeInstanceCmd())
 	rootCmd.AddCommand(instanceCmd)
 }
