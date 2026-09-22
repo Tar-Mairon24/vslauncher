@@ -2,8 +2,9 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"os"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
@@ -65,7 +66,7 @@ func resolveReleases(channel, operation, platform string) ([]versions.Release, e
 }
 
 func listCmd() *cobra.Command {
-	var channel, operation string
+	var channel, operation, platform string
 	var verbose bool
 	var head int
 	cmd := &cobra.Command{
@@ -73,7 +74,23 @@ func listCmd() *cobra.Command {
 		Short: "List available Vintage Story versions",
 		Long:  "List available Vintage Story versions, optionally filtered by channel, operation, and platform.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			releases, err := resolveReleases(channel, operation, currentPlatform)
+			var releases []versions.Release
+			var err error
+			if platform != "" {
+				if !validPlatforms[platform] {
+					return fmt.Errorf("unknown platform %q", platform)
+				}
+				releases, err = resolveReleases(channel, operation, platform)
+				if err != nil {
+					return err
+				}
+			} else {
+				releases, err = resolveReleases(channel, operation, currentPlatform)
+				if err != nil {
+					return err
+				}
+			}
+
 			if err != nil {
 				return err
 			}
@@ -83,23 +100,30 @@ func listCmd() *cobra.Command {
 			}
 			
 			if verbose {
-				releasesJSON, err := json.MarshalIndent(releases, "", "  ")
-				if err != nil {
-					return fmt.Errorf("marshaling releases: %w", err)
+			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+			fmt.Fprintln(w, "VERSION\tCHANNEL\tPLATFORM\tSIZE\tLATEST")
+			for _, r := range releases {
+				latest := ""
+				if r.Latest {
+					latest = "yes"
 				}
-				fmt.Println(string(releasesJSON))
-			} else {
-				for _, r := range releases {
-					fmt.Println(r.Version)
-				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+					r.Version, r.Channel, r.Platform, r.FileSizeHuman, latest)
 			}
-			return nil
+			return w.Flush()
+		}
+
+		for _, r := range releases {
+			fmt.Println(r.Version)
+		}
+		return nil
 		},
 	}
 	cmd.Flags().StringVarP(&channel, "channel", "c", "", "release channel (stable or unstable)")
 	cmd.Flags().StringVarP(&operation, "operation", "o", "desc", "sort order (asc or desc)")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show detailed release information")
 	cmd.Flags().IntVarP(&head, "head", "n", 0, "show only the first N releases")
+	cmd.Flags().StringVarP(&platform, "platform", "p", currentPlatform, "filter by platform (windows, linux, mac-x64, mac-arm64, server)")
 	return cmd
 }
 
