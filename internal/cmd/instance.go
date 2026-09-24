@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tar-Mairon24/vslauncher/internal/instance"
 	"github.com/Tar-Mairon24/vslauncher/internal/versions"
+	"github.com/Tar-Mairon24/vslauncher/internal/utils/cmdProgressBar"
 )
 
 var instanceCmd = &cobra.Command{
@@ -54,7 +55,8 @@ func createInstanceCmd() *cobra.Command {
 
 			fmt.Printf("installing %s (%s) into instance %q \n", release.Version, release.Channel, name)
 
-			inst, err := instance.Create(cmd.Context(), name, release, customPath, desktopFile)
+			progress := cmdProgressBar.New(fmt.Sprintf("downloading %s... ", release.Version))
+			inst, err := instance.Create(cmd.Context(), name, release, customPath, desktopFile, progress)
 			if err != nil {
 				return err
 			}
@@ -93,14 +95,14 @@ func listInstancesCmd() *cobra.Command {
 
 			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 			if verbose {
-				fmt.Fprintln(w, "NAME\tVERSION\tCHANNEL\tPATH\tINSTALLED")
+				fmt.Fprintln(w, "INSTANCE NAME\tVERSION\tCHANNEL\tPATH\tINSTALLED")
 				for _, inst := range instances {
 					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
 						inst.Name, inst.Version, inst.Channel, inst.Path,
 						inst.InstalledAt.Format("2006-01-02 15:04"))
 				}
 			} else {
-				fmt.Fprintln(w, "NAME\tVERSION\tCHANNEL")
+				fmt.Fprintln(w, "INSTANCE NAME\tVERSION\tCHANNEL")
 				for _, inst := range instances {
 					fmt.Fprintf(w, "%s\t%s\t%s\n", inst.Name, inst.Version, inst.Channel)
 				}
@@ -185,7 +187,8 @@ func updateInstanceCmd() *cobra.Command {
 
 			fmt.Printf("updating instance %q to version %s (%s)\n", name, release.Version, release.Channel)
 
-			if err := instance.Update(name, release); err != nil {
+			progress := cmdProgressBar.New(fmt.Sprintf("downloading %s", release.Version))
+			if err := instance.Update(name, release, progress); err != nil {
 				return fmt.Errorf("updating instance %q: %w", name, err)
 			}
 

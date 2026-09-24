@@ -14,8 +14,7 @@ import (
 	"github.com/Tar-Mairon24/vslauncher/internal/versions"
 )
 
-func Create(ctx context.Context, name string, release versions.Release, customPath string, createDesktopFile bool) (*Instance, error) {
-	var instancesRoot string
+func Create(ctx context.Context, name string, release versions.Release, customPath string, createDesktopFile bool, progress download.ProgressReporters) (*Instance, error) {	var instancesRoot string
 	var err error
 	isCustomPath := customPath != ""
 
@@ -36,7 +35,8 @@ func Create(ctx context.Context, name string, release versions.Release, customPa
 		return nil, fmt.Errorf("checking for existing instance: %w", err)
 	}
 
-	if err := download.FetchAndExtract(ctx, release, instanceDir); err != nil {
+
+	if err := download.FetchAndExtract(ctx, release, instanceDir, progress); err != nil {
 		return nil, fmt.Errorf("installing instance %q: %w", name, err)
 	}
 
@@ -139,7 +139,7 @@ func Remove(name string) error {
 	return nil
 }
 
-func Update(name string, newRelease versions.Release) error {
+func Update(name string, newRelease versions.Release, progress download.ProgressReporters) error {
 	instToUpdate, err := FindByName(name)
 	if err != nil {
 		return err
@@ -158,7 +158,7 @@ func Update(name string, newRelease versions.Release) error {
 	}
 	defer os.RemoveAll(tmpParent)
 
-	if err := download.FetchAndExtract(context.Background(), newRelease, tmpParent); err != nil {
+	if err := download.FetchAndExtract(context.Background(), newRelease, tmpParent, progress); err != nil {
 		return fmt.Errorf("downloading and extracting new release: %w", err)
 	}
 
@@ -347,7 +347,7 @@ func convertXPMtoPNG(xpmPath, pngPath string) error {
 	if _, err := exec.LookPath("magick"); err == nil {
 		converter = "magick"
 	} else if _, err := exec.LookPath("convert"); err != nil {
-		return fmt.Errorf("no image converter (convert/magick) found on PATH")
+		return fmt.Errorf("no image converter (convert/magick) found on PATH, install ImageMagick to convert XPM icons to PNG: %w", err)
 	}
 	cmd := exec.Command(converter, xpmPath, pngPath)
 	if err := cmd.Run(); err != nil {

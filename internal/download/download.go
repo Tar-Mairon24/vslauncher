@@ -19,7 +19,20 @@ import (
 	"github.com/Tar-Mairon24/vslauncher/internal/versions"
 )
 
-func FetchAndExtract(ctx context.Context, release versions.Release, destDir string) error {
+type ProgressFactory func(size int64) io.Writer
+
+type StepReporter interface {
+	Step(label string)
+}
+
+type ExtractProgressFactory func(totalFiles int) StepReporter
+
+type ProgressReporters struct {
+	Download ProgressFactory
+	Extract  ExtractProgressFactory
+}
+
+func FetchAndExtract(ctx context.Context, release versions.Release, destDir string, progress ProgressReporters) error {
 	tmpfile, err := os.CreateTemp("", "vsl-download-*.tar.gz")
 	if err != nil {
 		return fmt.Errorf("creating temp file: %w", err)
@@ -27,7 +40,7 @@ func FetchAndExtract(ctx context.Context, release versions.Release, destDir stri
 	tmpfilePath := tmpfile.Name()
 	defer os.Remove(tmpfilePath)
 
-	if err := download(ctx, release.DownloadURL, tmpfile); err != nil {
+	if err := download(ctx, release.DownloadURL, tmpfile, progress.Download); err != nil {
 		tmpfile.Close()
 		return fmt.Errorf("downloading %s: %w", release.DownloadURL, err)
 	}
@@ -36,24 +49,17 @@ func FetchAndExtract(ctx context.Context, release versions.Release, destDir stri
 	if err := verifyChecksum(tmpfilePath, release.Checksum, release.ChecksumAlgo); err != nil {
 		return fmt.Errorf("verifying checksum: %w", err)
 	}
-
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return fmt.Errorf("creating destination directory: %w", err)
 	}
-
-	if err := extractTarGz(tmpfilePath, destDir); err != nil {
-		return fmt.Errorf("extracting archive %s: %w", tmpfilePath, err)
-	}
-
-	return nil
+	return extractTarGz(tmpfilePath, destDir, progress.Extract)
 }
 
-func download(ctx context.Context, url string, out *os.File) error {
+func download(ctx context.Context, url string, out *os.File, newProgress ProgressFactory) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
-
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
@@ -64,7 +70,15 @@ func download(ctx context.Context, url string, out *os.File) error {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	_, err = io.Copy(out, resp.Body)
+	dest := io.Writer(out)
+	if newProgress != nil {
+		bar := newProgress(resp.ContentLength)
+		if closer, ok := bar.(io.Closer); ok {
+			defer closer.Close()
+		}
+		dest = io.MultiWriter(out, bar)
+	}
+	_, err = io.Copy(dest, resp.Body)
 	return err
 }
 
@@ -97,7 +111,17 @@ func verifyChecksum(path, expected, algo string) error {
 	return nil
 }
 
-func extractTarGz(archivePath, destDir string) error {
+func extractTarGz(archivePath, destDir string, newExtractProgress ExtractProgressFactory) error {
+	total, err := countTarEntries(archivePath)
+	if err != nil {
+		return fmt.Errorf("counting archive entries: %w", err)
+	}
+
+	var reporter StepReporter
+	if newExtractProgress != nil {
+		reporter = newExtractProgress(total)
+	}
+
 	file, err := os.Open(archivePath)
 	if err != nil {
 		return fmt.Errorf("opening archive: %w", err)
@@ -111,7 +135,6 @@ func extractTarGz(archivePath, destDir string) error {
 	defer gz.Close()
 
 	tarReader := tar.NewReader(gz)
-
 	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
@@ -122,7 +145,6 @@ func extractTarGz(archivePath, destDir string) error {
 		}
 
 		targetPath := filepath.Join(destDir, header.Name)
-		
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if err := os.MkdirAll(targetPath, 0755); err != nil {
@@ -144,6 +166,36 @@ func extractTarGz(archivePath, destDir string) error {
 		default:
 			return fmt.Errorf("unsupported file type in archive: %v", header.Typeflag)
 		}
+
+		if reporter != nil {
+			reporter.Step(header.Name)
+		}
 	}
 }
 
+func countTarEntries(archivePath string) (int, error) {
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	gz, err := gzip.NewReader(file)
+	if err != nil {
+		return 0, err
+	}
+	defer gz.Close()
+
+	tarReader := tar.NewReader(gz)
+	count := 0
+	for {
+		_, err := tarReader.Next()
+		if err == io.EOF {
+			return count, nil
+		}
+		if err != nil {
+			return 0, err
+		}
+		count++
+	}
+}
