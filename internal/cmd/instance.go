@@ -10,8 +10,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Tar-Mairon24/vslauncher/internal/instance"
-	"github.com/Tar-Mairon24/vslauncher/internal/versions"
 	"github.com/Tar-Mairon24/vslauncher/internal/utils/cmdProgressBar"
+	"github.com/Tar-Mairon24/vslauncher/internal/versions"
 )
 
 var instanceCmd = &cobra.Command{
