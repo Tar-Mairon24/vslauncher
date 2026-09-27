@@ -61,7 +61,7 @@ func ScanInstalled(dataPath string) ([]InstalledMod, error) {
 	return mods, nil
 }
 
-func UpdateMods(ctx context.Context, installed []InstalledMod, modsDir, gameVersion string, targetModIDs, excludedModIDs []string, newProgress download.ProgressFactory) ([]UpdateResult, error) {
+func UpdateMods(ctx context.Context, installed []InstalledMod, modsDir string, dataPath string, gameVersion string, targetModIDs, excludedModIDs []string, newProgress download.ProgressFactory) ([]UpdateResult, error) {
 	checked, err := CheckForUpdates(ctx, installed, gameVersion, targetModIDs, excludedModIDs)
 	if err != nil {
 		return nil, fmt.Errorf("checking for updates: %w", err)
@@ -121,6 +121,8 @@ func UpdateMods(ctx context.Context, installed []InstalledMod, modsDir, gameVers
 		}
 		results = append(results, res)
 	}
+
+	ClearCache(dataPath)
 	return results, nil
 }
 
@@ -156,6 +158,10 @@ func toSet(items []string) map[string]bool {
 		s[i] = true
 	}
 	return s
+}
+
+func ClearCache(dataPath string) error {
+	return os.RemoveAll(filepath.Join(dataPath, "Cache"))
 }
 
 func extractVersionFromFilename(path string) string {

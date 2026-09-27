@@ -178,7 +178,7 @@ func updateModsCmd() *cobra.Command {
 			progress := func(size int64) io.Writer {
 				return cmdProgressBar.CreateDownloadProgressBar(size, "")
 			}
-			results, err := mods.UpdateMods(cmd.Context(), installed, modsDir, inst.Version, targetModsIDs, excluded, progress)
+			results, err := mods.UpdateMods(cmd.Context(), installed, modsDir,inst.DataPath, inst.Version, targetModsIDs, excluded, progress)
 			if err != nil {
 				return fmt.Errorf("updating mods: %w", err)
 			}
