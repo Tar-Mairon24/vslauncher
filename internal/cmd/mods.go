@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -175,10 +174,19 @@ func updateModsCmd() *cobra.Command {
 			}
 
 			modsDir := filepath.Join(inst.DataPath, "Mods")
-			progress := func(size int64) io.Writer {
-				return cmdProgressBar.CreateDownloadProgressBar(size, "")
+			options := mods.UpdateModParams{
+				Installed:      installed,
+				GameVersion:    inst.Version,
+				TargetModIDs:   targetModsIDs,
+				ExcludedModIDs: excluded,
+				ModsDir:        modsDir,
+				DataPath:       inst.DataPath,
+				BackupDir:      defaultBackupDir(inst),
+				MaxBackups:     5,
+				NewProgress:    cmdProgressBar.NewMultiProgress(),
 			}
-			results, err := mods.UpdateMods(cmd.Context(), installed, modsDir,inst.DataPath, inst.Version, targetModsIDs, excluded, progress)
+
+			results, err := mods.UpdateMods(cmd.Context(), options)
 			if err != nil {
 				return fmt.Errorf("updating mods: %w", err)
 			}
@@ -216,6 +224,10 @@ func excludeModsCmd() *cobra.Command {
 	}
 
 	return cmd
+}
+
+func defaultBackupDir(inst *instance.Instance) string {
+	return filepath.Join(inst.Path, "backups")
 }
 
 func init() {

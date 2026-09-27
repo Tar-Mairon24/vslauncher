@@ -21,6 +21,8 @@ import (
 
 type ProgressFactory func(size int64) io.Writer
 
+type MultiProgressFactory func(fileName string) ProgressFactory
+
 type StepReporter interface {
 	Step(label string)
 }

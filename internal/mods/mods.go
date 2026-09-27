@@ -12,6 +12,7 @@ import (
 
 	"github.com/andreyvit/jsonfix"
 
+	"github.com/Tar-Mairon24/vslauncher/internal/backup"
 	"github.com/Tar-Mairon24/vslauncher/internal/download"
 )
 
@@ -61,8 +62,8 @@ func ScanInstalled(dataPath string) ([]InstalledMod, error) {
 	return mods, nil
 }
 
-func UpdateMods(ctx context.Context, installed []InstalledMod, modsDir string, dataPath string, gameVersion string, targetModIDs, excludedModIDs []string, newProgress download.ProgressFactory) ([]UpdateResult, error) {
-	checked, err := CheckForUpdates(ctx, installed, gameVersion, targetModIDs, excludedModIDs)
+func UpdateMods(ctx context.Context, opts UpdateModParams) ([]UpdateResult, error) {
+	checked, err := CheckForUpdates(ctx, opts.Installed, opts.GameVersion, opts.TargetModIDs, opts.ExcludedModIDs)
 	if err != nil {
 		return nil, fmt.Errorf("checking for updates: %w", err)
 	}
@@ -70,8 +71,28 @@ func UpdateMods(ctx context.Context, installed []InstalledMod, modsDir string, d
 		return nil, nil
 	}
 
-	byModID := make(map[string]InstalledMod, len(installed))
-	for _, m := range installed {
+	hasUpgrade := false
+	for _, r := range checked {
+		if r.Available() && r.RecommendedUpgrade != "" {
+			hasUpgrade = true
+			break
+		}
+	}
+	if !hasUpgrade {
+		return nil, nil
+	}
+
+	if opts.BackupDir != "" {
+		if _, err := backup.Create(opts.ModsDir, opts.BackupDir, "mods"); err != nil {
+			return nil, fmt.Errorf("creating backup: %w", err)
+		}
+		if err := backup.Prune(opts.BackupDir, "mods", opts.MaxBackups); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not prune old backups: %v\n", err)
+		}
+	}
+
+	byModID := make(map[string]InstalledMod, len(opts.Installed))
+	for _, m := range opts.Installed {
 		byModID[m.Info.ModID] = m
 	}
 
@@ -85,7 +106,7 @@ func UpdateMods(ctx context.Context, installed []InstalledMod, modsDir string, d
 		return nil, nil
 	}
 
-	upgrades, err := FetchInstallInfo(ctx, upgradeIDs, gameVersion)
+	upgrades, err := FetchInstallInfo(ctx, upgradeIDs, opts.GameVersion)
 	if err != nil {
 		return nil, fmt.Errorf("resolving upgrade downloads: %w", err)
 	}
@@ -101,7 +122,12 @@ func UpdateMods(ctx context.Context, installed []InstalledMod, modsDir string, d
 			continue
 		}
 
-		newPath, err := DownloadMod(ctx, r, modsDir, newProgress)
+		var progress download.ProgressFactory
+		if opts.NewProgress != nil {
+			progress = opts.NewProgress(r.Name)
+		}
+
+		newPath, err := DownloadMod(ctx, r, opts.ModsDir, progress)
 		if err != nil {
 			res.Error = fmt.Sprintf("downloading: %v", err)
 			results = append(results, res)
@@ -122,7 +148,7 @@ func UpdateMods(ctx context.Context, installed []InstalledMod, modsDir string, d
 		results = append(results, res)
 	}
 
-	ClearCache(dataPath)
+	ClearCache(opts.DataPath)
 	return results, nil
 }
 

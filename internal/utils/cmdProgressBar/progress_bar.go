@@ -77,3 +77,11 @@ func CreateProgressReporters(downloadLabel string) download.ProgressReporters {
 func CreateDownloadProgressBar(size int64, description string) io.Writer {
 	return newDownloadBar(size, description)
 }
+
+func NewMultiProgress() download.MultiProgressFactory {
+	return func(fileName string) download.ProgressFactory {
+		return func(size int64) io.Writer {
+			return newDownloadBar(size, fmt.Sprintf("Downloading... %s", fileName))
+		}
+	}
+}
