@@ -1,7 +1,7 @@
 package main
 
-import "github.com/Tar-Mairon24/vslauncher/internal/cmd"
+import "github.com/Tar-Mairon24/vslauncher/cli"
 
 func main() {
-	cmd.Execute()
+	cli.Execute()
 }

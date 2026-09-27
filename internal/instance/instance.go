@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tar-Mairon24/vslauncher/internal/download"
 	"github.com/Tar-Mairon24/vslauncher/internal/versions"
+	"github.com/Tar-Mairon24/vslauncher/internal/appdirs"
 )
 
 func Create(ctx context.Context, name string, release versions.Release, customPath string, createDesktopFile bool, progress download.ProgressReporters) (*Instance, error) {	var instancesRoot string
@@ -21,7 +22,7 @@ func Create(ctx context.Context, name string, release versions.Release, customPa
 	if isCustomPath {
 		instancesRoot = customPath
 	} else {
-		instancesRoot, err = defaultInstancesRoot()
+		instancesRoot, err = appdirs.DefaultInstancesRoot()
 		if err != nil {
 			return nil, err
 		}
@@ -81,7 +82,7 @@ func Create(ctx context.Context, name string, release versions.Release, customPa
 }
 
 func List() ([]Instance, error) {
-	root, err := defaultInstancesRoot()
+	root, err := appdirs.DefaultInstancesRoot()
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +194,7 @@ func CreateDesktopFile(inst *Instance) (string, error) {
 		return "", fmt.Errorf("desktop file creation is only supported on Linux")
 	}
 
-	linuxDesktopPath, err := desktopFileDir()
+	linuxDesktopPath, err := appdirs.DesktopFileDir()
 	if err != nil {
 		return "", fmt.Errorf("getting desktop file directory: %w", err)
 	}
@@ -325,31 +326,6 @@ func save(inst *Instance) error {
 
 	metaPath := filepath.Join(inst.Path, "instance.json")
 	return os.WriteFile(metaPath, data, 0644)
-}
-
-func desktopFileDir() (string, error) {
-	dataHome := os.Getenv("XDG_DATA_HOME")
-	if dataHome == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		dataHome = filepath.Join(home, ".local", "share")
-	}
-	return filepath.Join(dataHome, "applications"), nil
-}
-
-func defaultInstancesRoot() (string, error) {
-	dataHome := os.Getenv("XDG_DATA_HOME")
-	if dataHome == "" {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("getting user home directory: %w", err)
-		}
-		dataHome = filepath.Join(homeDir, ".local", "share")
-	}
-
-	return filepath.Join(dataHome, "vslauncher", "instances"), nil
 }
 
 func convertXPMtoPNG(xpmPath, pngPath string) error {

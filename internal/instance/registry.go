@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/Tar-Mairon24/vslauncher/internal/appdirs"
 )
 
 func registryPath() (string, error) {
-	root, err := defaultInstancesRoot()
+	root, err := appdirs.DefaultInstancesRoot()
 	if err != nil {
 		return "", err
 	}

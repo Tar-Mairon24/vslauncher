@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/andreyvit/jsonfix"
 
@@ -67,44 +69,16 @@ func UpdateMods(ctx context.Context, opts UpdateModParams) ([]UpdateResult, erro
 	if err != nil {
 		return nil, fmt.Errorf("checking for updates: %w", err)
 	}
-	if len(checked) == 0 {
-		return nil, nil
-	}
 
-	hasUpgrade := false
-	for _, r := range checked {
-		if r.Available() && r.RecommendedUpgrade != "" {
-			hasUpgrade = true
-			break
-		}
-	}
-	if !hasUpgrade {
+	upgradeIDs := upgradeableModIDs(checked)
+	if len(upgradeIDs) == 0 {
 		return nil, nil
 	}
 
 	if opts.BackupDir != "" {
-		label := fmt.Sprintf("%s_mods", opts.InstName)
-		if _, err := backup.Create(opts.ModsDir, opts.BackupDir, label); err != nil {
+		if err := backupBeforeUpdate(opts.BackupDir, opts.InstName, opts.ModsDir, opts.MaxBackups); err != nil {
 			return nil, fmt.Errorf("creating backup: %w", err)
 		}
-		if err := backup.Prune(opts.BackupDir, label, opts.MaxBackups); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not prune old backups: %v\n", err)
-		}
-	}
-
-	byModID := make(map[string]InstalledMod, len(opts.Installed))
-	for _, m := range opts.Installed {
-		byModID[m.Info.ModID] = m
-	}
-
-	var upgradeIDs []string
-	for _, r := range checked {
-		if r.Available() && r.RecommendedUpgrade != "" {
-			upgradeIDs = append(upgradeIDs, r.Name)
-		}
-	}
-	if len(upgradeIDs) == 0 {
-		return nil, nil
 	}
 
 	upgrades, err := FetchInstallInfo(ctx, upgradeIDs, opts.GameVersion)
@@ -112,48 +86,13 @@ func UpdateMods(ctx context.Context, opts UpdateModParams) ([]UpdateResult, erro
 		return nil, fmt.Errorf("resolving upgrade downloads: %w", err)
 	}
 
-	results := make([]UpdateResult, 0, len(upgrades))
-	for _, r := range upgrades {
-		old := byModID[r.Name]
-		res := UpdateResult{ModID: r.Name, OldVersion: old.Info.Version}
+	results := downloadAndReplaceMods(ctx, upgrades, opts.Installed, opts.ModsDir, opts.NewProgress)
 
-		if !r.Available() {
-			res.Error = fmt.Sprintf("error %d: %s", r.ErrorCode, r.RetractionReason)
-			results = append(results, res)
-			continue
-		}
-
-		var progress download.ProgressFactory
-		if opts.NewProgress != nil {
-			progress = opts.NewProgress(r.Name)
-		}
-
-		newPath, err := DownloadMod(ctx, r, opts.ModsDir, progress)
-		if err != nil {
-			res.Error = fmt.Sprintf("downloading: %v", err)
-			results = append(results, res)
-			continue
-		}
-
-		if filepath.Ext(old.Path) == ".zip" && old.Path != newPath {
-			if err := os.Remove(old.Path); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: downloaded %s but could not remove old file %s: %v\n", newPath, old.Path, err)
-			}
-		}
-
-		if info, err := readModInfoFromZip(newPath); err != nil {
-			res.NewVersion = extractVersionFromFilename(newPath)
-		} else {
-			res.NewVersion = info.Version
-		}
-		results = append(results, res)
-	}
-
-	ClearCache(opts.DataPath)
+	clearCache(opts.DataPath)
 	return results, nil
 }
 
-func CheckForUpdates(ctx context.Context, installed []InstalledMod, gameVersion string, targetModIDs, excludedModIDs []string) ([]InstallInfoResult, error) {
+func CheckForUpdates(ctx context.Context, installed []InstalledMod, gameVersion string, targetModIDs []string, excludedModIDs []string) ([]InstallInfoResult, error) {
 	excluded := toSet(excludedModIDs)
 	targets := toSet(targetModIDs)
 
@@ -178,6 +117,119 @@ func CheckForUpdates(ctx context.Context, installed []InstalledMod, gameVersion 
 	return results, nil
 }
 
+func downloadAndReplaceMods(ctx context.Context, upgrades []InstallInfoResult, installed []InstalledMod, modsDir string, newProgress download.MultiProgressFactory) []UpdateResult {
+	byModID := make(map[string]InstalledMod, len(installed))
+	for _, m := range installed {
+		byModID[m.Info.ModID] = m
+	}
+
+	results := make([]UpdateResult, 0, len(upgrades))
+	for _, r := range upgrades {
+		old := byModID[r.Name]
+		res := UpdateResult{ModID: r.Name, OldVersion: old.Info.Version}
+
+		if !r.Available() {
+			res.Error = fmt.Sprintf("error %d: %s", r.ErrorCode, r.RetractionReason)
+			results = append(results, res)
+			continue
+		}
+
+		var progress download.ProgressFactory
+		if newProgress != nil {
+			progress = newProgress(r.Name)
+		}
+
+		newPath, err := downloadMod(ctx, r, modsDir, progress)
+		if err != nil {
+			res.Error = fmt.Sprintf("downloading: %v", err)
+			results = append(results, res)
+			continue
+		}
+
+		if filepath.Ext(old.Path) == ".zip" && old.Path != newPath {
+			if err := os.Remove(old.Path); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: downloaded %s but could not remove old file %s: %v\n", newPath, old.Path, err)
+			}
+		}
+
+		if info, err := readModInfoFromZip(newPath); err != nil {
+			res.NewVersion = extractVersionFromFilename(newPath)
+		} else {
+			res.NewVersion = info.Version
+		}
+		results = append(results, res)
+	}
+	return results
+}
+
+func downloadMod(ctx context.Context, result InstallInfoResult, modsDir string, newProgress download.ProgressFactory) (string, error) {
+	if !result.Available() {
+		return "", fmt.Errorf("unavailable (error %d): %s", result.ErrorCode, result.RetractionReason)
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL(result.FileURL), nil)
+	if err != nil {
+		return "", fmt.Errorf("creating request: %w", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("downloading mod: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	if err := os.MkdirAll(modsDir, 0755); err != nil {
+		return "", fmt.Errorf("creating mods directory: %w", err)
+	}
+
+	destPath := filepath.Join(modsDir, result.FileName)
+	out, err := os.Create(destPath)
+	if err != nil {
+		return "", fmt.Errorf("creating %s: %w", destPath, err)
+	}
+	defer out.Close()
+
+	dest := io.Writer(out)
+	if newProgress != nil {
+		bar := newProgress(resp.ContentLength)
+		if closer, ok := bar.(io.Closer); ok {
+			defer closer.Close()
+		}
+		dest = io.MultiWriter(out, bar)
+	}
+
+	if _, err := io.Copy(dest, resp.Body); err != nil {
+		return "", fmt.Errorf("writing to %s: %w", destPath, err)
+	}
+
+	return destPath, nil
+}
+
+func upgradeableModIDs(checked []InstallInfoResult) []string {
+	var ids []string
+	for _, r := range checked {
+		if r.Available() && r.RecommendedUpgrade != "" {
+			ids = append(ids, r.Name)
+		}
+	}
+	return ids
+}
+
+func backupBeforeUpdate(backupDir string, instName string, modsDir string, maxBackups int) error {
+	label := fmt.Sprintf("%s_mods", instName)
+	if _, err := backup.Create(modsDir, backupDir, label); err != nil {
+		return fmt.Errorf("creating backup: %w", err)
+	}
+	if err := backup.Prune(backupDir, label, maxBackups); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not prune old backups: %v\n", err)
+	}
+	return nil
+}
+
 
 func toSet(items []string) map[string]bool {
 	s := make(map[string]bool, len(items))
@@ -187,7 +239,7 @@ func toSet(items []string) map[string]bool {
 	return s
 }
 
-func ClearCache(dataPath string) error {
+func clearCache(dataPath string) error {
 	return os.RemoveAll(filepath.Join(dataPath, "Cache"))
 }
 
