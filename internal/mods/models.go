@@ -5,8 +5,10 @@ const modDBBaseURL = "https://mods.vintagestory.at"
 type InstallInfoResult struct {
 	Name               string `json:"-"`
 	FileName           string `json:"fileName"`
-	FileURL            string `json:"fileurl"`
+	FileURL            string `json:"fileUrl"`
 	RecommendedUpgrade string `json:"recommendedUpgrade,omitempty"`
+	ErrorCode          int    `json:"errorCode,omitempty"`
+	RetractionReason   string `json:"retractionReason,omitempty"`
 }
 
 type installInfoResponse struct {
@@ -36,6 +38,17 @@ type clientSettings struct {
 	StringListSettings struct {
 		DisabledMods []string `json:"disabledMods"`
 	} `json:"stringListSettings"`
+}
+
+type UpdateResult struct {
+	ModID      string
+	OldVersion string
+	NewVersion string
+	Error        string
+}
+
+func (r InstallInfoResult) Available() bool {
+	return r.ErrorCode == 0
 }
 
 func downloadURL(fileURL string) string {

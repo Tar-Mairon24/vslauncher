@@ -55,7 +55,7 @@ func createInstanceCmd() *cobra.Command {
 
 			fmt.Printf("installing %s (%s) into instance %q \n", release.Version, release.Channel, name)
 
-			progress := cmdProgressBar.New(fmt.Sprintf("downloading %s... ", release.Version))
+			progress := cmdProgressBar.CreateProgressReporters(fmt.Sprintf("downloading %s... ", release.Version))
 			inst, err := instance.Create(cmd.Context(), name, release, customPath, desktopFile, progress)
 			if err != nil {
 				return err
@@ -187,7 +187,7 @@ func updateInstanceCmd() *cobra.Command {
 
 			fmt.Printf("updating instance %q to version %s (%s)\n", name, release.Version, release.Channel)
 
-			progress := cmdProgressBar.New(fmt.Sprintf("downloading %s", release.Version))
+			progress := cmdProgressBar.CreateProgressReporters(fmt.Sprintf("downloading %s", release.Version))
 			if err := instance.Update(name, release, progress); err != nil {
 				return fmt.Errorf("updating instance %q: %w", name, err)
 			}

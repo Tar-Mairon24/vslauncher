@@ -62,7 +62,7 @@ func (r *barStepReporter) Step(label string) {
 	r.bar.Add(1)
 }
 
-func New(downloadLabel string) download.ProgressReporters {
+func CreateProgressReporters(downloadLabel string) download.ProgressReporters {
 	return download.ProgressReporters{
 		Download: func(size int64) io.Writer {
 			return newDownloadBar(size, downloadLabel)
@@ -72,4 +72,8 @@ func New(downloadLabel string) download.ProgressReporters {
 			return &barStepReporter{bar: bar}
 		},
 	}
+}
+
+func CreateDownloadProgressBar(size int64, description string) io.Writer {
+	return newDownloadBar(size, description)
 }

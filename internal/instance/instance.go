@@ -218,6 +218,16 @@ func CreateDesktopFile(inst *Instance) (string, error) {
 	return desktopPath, nil
 }
 
+func SetExcludedFromUpdate(name string, modIDs []string) error {
+	inst, err := FindByName(name)
+	if err != nil {
+		return err
+	}
+
+	inst.ExcludedFromUpdate = modIDs
+	return save(inst)
+}
+
 func resolveIconPath(instanceDir string) string {
 	assetsDir := filepath.Join(instanceDir, "vintagestory", "assets")
 

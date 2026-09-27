@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/tabwriter"
 
@@ -10,6 +12,7 @@ import (
 
 	"github.com/Tar-Mairon24/vslauncher/internal/instance"
 	"github.com/Tar-Mairon24/vslauncher/internal/mods"
+	"github.com/Tar-Mairon24/vslauncher/internal/utils/cmdProgressBar"
 )
 
 var modsCmd = &cobra.Command{
@@ -126,8 +129,99 @@ func checkModsCmd() *cobra.Command {
 	return cmd
 }
 
+func updateModsCmd() *cobra.Command {
+	var excludeFlag string
+	var dryRun bool
+
+	cmd := &cobra.Command{
+		Use:   "update <instance-name> [mod-ids...]",
+		Short: "Update mods installed for an instance (default: all mods)",
+		Long:  "Update mods installed for an instance, optionally specifying which mods to update by their mod IDs (default: all mods).",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			inst, err := instance.FindByName(args[0])
+			if err != nil {
+				return err
+			}
+
+			targetModsIDs := args[1:]
+
+			excluded := inst.ExcludedFromUpdate
+			if excludeFlag != "" {
+				excluded = append(excluded, strings.Split(excludeFlag, ",")...)
+			}
+
+			installed, err := mods.ScanInstalled(inst.DataPath)
+			if err != nil {
+				return fmt.Errorf("scanning installed mods: %w", err)
+			}
+
+			availabeUpdates, err := mods.CheckForUpdates(cmd.Context(), installed, inst.Version, targetModsIDs, excluded)
+			if err != nil {
+				return fmt.Errorf("checking for updates: %w", err)
+			}
+			if len(availabeUpdates) == 0 {
+				fmt.Println("No updates available for the installed mods.")
+				return nil
+			}
+
+			if dryRun {
+				for _, r := range availabeUpdates {
+					if r.Available() && r.RecommendedUpgrade != "" {
+						fmt.Printf("Mod %s has an available update: %s\n", r.Name, r.RecommendedUpgrade)
+					}
+				}
+				return nil
+			}
+
+			modsDir := filepath.Join(inst.DataPath, "Mods")
+			progress := func(size int64) io.Writer {
+				return cmdProgressBar.CreateDownloadProgressBar(size, "")
+			}
+			results, err := mods.UpdateMods(cmd.Context(), installed, modsDir, inst.Version, targetModsIDs, excluded, progress)
+			if err != nil {
+				return fmt.Errorf("updating mods: %w", err)
+			}
+			if len(results) == 0 {
+				fmt.Println("No updates available for the installed mods.")
+				return nil
+			}
+			for _, res := range results {
+				if res.Error != "" {
+					fmt.Printf("%s: FAILED - %v\n", res.ModID, res.Error)
+					continue
+				}
+				fmt.Printf("%s: %s -> %s\n", res.ModID, res.OldVersion, res.NewVersion)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&excludeFlag, "exclude", "", "Comma-separated list of mod IDs to exclude from updates")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Perform a dry run without actually updating the mods")
+
+	return cmd
+}
+
+func excludeModsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "exclude <instance-name> <mod-ids...>",
+		Short: "Permanently exclude mods from being updated for an instance",
+		Long:  "Permanently exclude specified mods from being updated for a given instance. This will add the mod IDs to the instance's exclusion list.",
+		Args:  cobra.MinimumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return instance.SetExcludedFromUpdate(args[0], args[1:])
+		},
+	}
+
+	return cmd
+}
+
 func init() {
 	rootCmd.AddCommand(modsCmd)
 	modsCmd.AddCommand(listModsCmd())
 	modsCmd.AddCommand(checkModsCmd())
+	modsCmd.AddCommand(updateModsCmd())
+	modsCmd.AddCommand(excludeModsCmd())
 }
