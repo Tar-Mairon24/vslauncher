@@ -83,10 +83,11 @@ func UpdateMods(ctx context.Context, opts UpdateModParams) ([]UpdateResult, erro
 	}
 
 	if opts.BackupDir != "" {
-		if _, err := backup.Create(opts.ModsDir, opts.BackupDir, "mods"); err != nil {
+		label := fmt.Sprintf("%s_mods", opts.InstName)
+		if _, err := backup.Create(opts.ModsDir, opts.BackupDir, label); err != nil {
 			return nil, fmt.Errorf("creating backup: %w", err)
 		}
-		if err := backup.Prune(opts.BackupDir, "mods", opts.MaxBackups); err != nil {
+		if err := backup.Prune(opts.BackupDir, label, opts.MaxBackups); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: could not prune old backups: %v\n", err)
 		}
 	}

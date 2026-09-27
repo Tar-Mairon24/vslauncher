@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
+	"github.com/Tar-Mairon24/vslauncher/internal/backup"
 	"github.com/Tar-Mairon24/vslauncher/internal/instance"
 	"github.com/Tar-Mairon24/vslauncher/internal/utils/cmdProgressBar"
 	"github.com/Tar-Mairon24/vslauncher/internal/versions"
@@ -203,6 +205,63 @@ func updateInstanceCmd() *cobra.Command {
 	return cmd
 }
 
+func backupInstanceCmd() *cobra.Command {
+	var target string
+	cmd := &cobra.Command{
+		Use:   "backup <instance-name> [--target mods|saves|all]",
+		Short: "Create a backup of an instance (default: all components)",
+		Long:  "Create a backup of an instance, including the specified components. If no components are specified, all components will be backed up.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			inst, err := instance.FindByName(args[0])
+			if err != nil {
+				return err
+			}
+
+			switch target {
+				case "mods", "saves", "all":
+					if err := backupTarget(target, inst); err != nil {
+						return err
+					}
+			default:
+				return fmt.Errorf("invalid target %q, must be one of: mods, saves, all", target)
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&target, "target", "t", "all", "Specify which components to backup: mods, saves or all (default: all)")
+
+	return cmd
+}
+
+func backupTarget(target string, inst *instance.Instance) error {
+	var srcDir string
+	if target == "all" {
+		srcDir = inst.DataPath
+	} else {
+		dir, ok := instance.BackupTargets[target]
+		if !ok {
+			return fmt.Errorf("unknown backup target %q", target)
+		}
+		srcDir = filepath.Join(inst.DataPath, dir)
+	}
+
+	backupDir := defaultBackupDir(inst)
+	label := fmt.Sprintf("%s_%s", inst.Name, target)
+
+	backupPath, err := backup.Create(srcDir, backupDir, label)
+	if err != nil {
+		return fmt.Errorf("creating backup: %w", err)
+	}
+	fmt.Printf("Backup created at %s\n", backupPath)
+
+	if err := backup.Prune(backupDir, label, 5); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not prune old backups: %v\n", err)
+	}
+	return nil
+}
+
 func confirm(prompt string) (bool, error) {
 	fmt.Fprintf(os.Stderr, "%s[y/N]: ", prompt)
 	reader := bufio.NewReader(os.Stdin)
@@ -219,5 +278,6 @@ func init() {
 	instanceCmd.AddCommand(listInstancesCmd())
 	instanceCmd.AddCommand(updateInstanceCmd())
 	instanceCmd.AddCommand(removeInstanceCmd())
+	instanceCmd.AddCommand(backupInstanceCmd())
 	rootCmd.AddCommand(instanceCmd)
 }

@@ -56,6 +56,7 @@ type UpdateModParams struct {
 	GameVersion    string
 	TargetModIDs   []string
 	ExcludedModIDs []string
+	InstName       string
 	BackupDir      string
 	MaxBackups     int
 	NewProgress    download.MultiProgressFactory

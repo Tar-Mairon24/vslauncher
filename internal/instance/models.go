@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+var BackupTargets = map[string]string{
+	"mods":  "Mods",
+	"saves": "Saves",
+}
+
 type Instance struct {
 	Name               string     `json:"name"`
 	Version            string     `json:"version"`

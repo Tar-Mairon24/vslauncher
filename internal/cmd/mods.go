@@ -181,6 +181,7 @@ func updateModsCmd() *cobra.Command {
 				ExcludedModIDs: excluded,
 				ModsDir:        modsDir,
 				DataPath:       inst.DataPath,
+				InstName:       inst.Name,
 				BackupDir:      defaultBackupDir(inst),
 				MaxBackups:     5,
 				NewProgress:    cmdProgressBar.NewMultiProgress(),
