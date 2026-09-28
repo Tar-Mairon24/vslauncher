@@ -40,7 +40,6 @@ func LaunchInstance(ctx context.Context, inst *instance.Instance, options Option
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
-
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("running instance %q: %w", inst.Name, err)
 	}
@@ -53,7 +52,7 @@ func buildArgs(inst *instance.Instance, options Options) []string {
 	if options.World != "" {
 		args = append(args, "--openWorld", options.World)
 	}
-	
+
 	if options.Connect != "" {
 		args = append(args, "--connect", options.Connect)
 	}
@@ -73,6 +72,6 @@ func buildArgs(inst *instance.Instance, options Options) []string {
 	if options.InstallMod != "" {
 		args = append(args, "--installMod", options.InstallMod)
 	}
-	
+
 	return args
 }

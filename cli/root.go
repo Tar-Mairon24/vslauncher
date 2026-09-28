@@ -11,12 +11,12 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "vsl",
-	Short: "Vintage Story Launcher CLI",
-	Long:  `A command-line interface for the Vintage Story Launcher`,
-	SilenceErrors: true,
+	Use:               "vsl",
+	Short:             "Vintage Story Launcher CLI",
+	Long:              `A command-line interface for the Vintage Story Launcher`,
+	SilenceErrors:     true,
 	DisableAutoGenTag: true,
-	Version: "0.1.0",
+	Version:           "0.1.0",
 }
 
 var currentPlatform string

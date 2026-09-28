@@ -12,7 +12,7 @@ import (
 
 	"github.com/Tar-Mairon24/vslauncher/internal/backup"
 	"github.com/Tar-Mairon24/vslauncher/internal/instance"
-	"github.com/Tar-Mairon24/vslauncher/internal/utils/cmdProgressBar"
+	"github.com/Tar-Mairon24/vslauncher/internal/utils/cmdprogressbar"
 	"github.com/Tar-Mairon24/vslauncher/internal/versions"
 )
 
@@ -57,7 +57,7 @@ func createInstanceCmd() *cobra.Command {
 
 			fmt.Printf("installing %s (%s) into instance %q \n", release.Version, release.Channel, name)
 
-			progress := cmdProgressBar.CreateProgressReporters(fmt.Sprintf("downloading %s... ", release.Version))
+			progress := cmdprogressbar.CreateProgressReporters(fmt.Sprintf("downloading %s... ", release.Version))
 			inst, err := instance.Create(cmd.Context(), name, release, customPath, desktopFile, progress)
 			if err != nil {
 				return err
@@ -189,7 +189,7 @@ func updateInstanceCmd() *cobra.Command {
 
 			fmt.Printf("updating instance %q to version %s (%s)\n", name, release.Version, release.Channel)
 
-			progress := cmdProgressBar.CreateProgressReporters(fmt.Sprintf("downloading %s", release.Version))
+			progress := cmdprogressbar.CreateProgressReporters(fmt.Sprintf("downloading %s", release.Version))
 			if err := instance.Update(name, release, progress); err != nil {
 				return fmt.Errorf("updating instance %q: %w", name, err)
 			}
@@ -219,10 +219,10 @@ func backupInstanceCmd() *cobra.Command {
 			}
 
 			switch target {
-				case "mods", "saves", "all":
-					if err := backupTarget(target, inst); err != nil {
-						return err
-					}
+			case "mods", "saves", "all":
+				if err := backupTarget(target, inst); err != nil {
+					return err
+				}
 			default:
 				return fmt.Errorf("invalid target %q, must be one of: mods, saves, all", target)
 			}

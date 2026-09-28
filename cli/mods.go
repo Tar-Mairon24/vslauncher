@@ -11,7 +11,7 @@ import (
 
 	"github.com/Tar-Mairon24/vslauncher/internal/instance"
 	"github.com/Tar-Mairon24/vslauncher/internal/mods"
-	"github.com/Tar-Mairon24/vslauncher/internal/utils/cmdProgressBar"
+	"github.com/Tar-Mairon24/vslauncher/internal/utils/cmdprogressbar"
 )
 
 var modsCmd = &cobra.Command{
@@ -184,7 +184,7 @@ func updateModsCmd() *cobra.Command {
 				InstName:       inst.Name,
 				BackupDir:      defaultBackupDir(inst),
 				MaxBackups:     5,
-				NewProgress:    cmdProgressBar.NewMultiProgress(),
+				NewProgress:    cmdprogressbar.NewMultiProgress(),
 			}
 
 			results, err := mods.UpdateMods(cmd.Context(), options)

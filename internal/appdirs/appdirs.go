@@ -12,7 +12,7 @@ func DataHome() (string, error) {
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("getting user home dir: %w", err)	
+		return "", fmt.Errorf("getting user home dir: %w", err)
 	}
 	return filepath.Join(home, ".local", "share"), nil
 }

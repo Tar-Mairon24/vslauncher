@@ -230,7 +230,6 @@ func backupBeforeUpdate(backupDir string, instName string, modsDir string, maxBa
 	return nil
 }
 
-
 func toSet(items []string) map[string]bool {
 	s := make(map[string]bool, len(items))
 	for _, i := range items {

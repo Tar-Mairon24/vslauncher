@@ -1,4 +1,4 @@
-package cmdProgressBar
+package cmdprogressbar
 
 import (
 	"fmt"

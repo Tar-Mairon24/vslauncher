@@ -24,8 +24,8 @@ func addToRegistry(name, path string) error {
 	}
 
 	entries = append(entries, registryEntry{
-		Name:    name,
-		Path:    path,
+		Name: name,
+		Path: path,
 	})
 
 	registryPath, err := registryPath()

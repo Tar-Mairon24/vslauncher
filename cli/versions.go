@@ -17,9 +17,9 @@ var channelURLs = map[string]string{
 }
 
 var versionsCmd = &cobra.Command{
-	Use:   "versions",
-	Short: "Manage and inspect Vintage Story versions",
-	Long:  "Manage and inspect Vintage Story versions, including listing available versions and filtering by channel, operation, and platform.",
+	Use:     "versions",
+	Short:   "Manage and inspect Vintage Story versions",
+	Long:    "Manage and inspect Vintage Story versions, including listing available versions and filtering by channel, operation, and platform.",
 	Aliases: []string{"ver", "v"},
 }
 
@@ -98,25 +98,25 @@ func listCmd() *cobra.Command {
 			if head > 0 && head < len(releases) {
 				releases = releases[:head]
 			}
-			
-			if verbose {
-			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-			fmt.Fprintln(w, "VERSION\tCHANNEL\tPLATFORM\tSIZE\tLATEST")
-			for _, r := range releases {
-				latest := ""
-				if r.Latest {
-					latest = "yes"
-				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
-					r.Version, r.Channel, r.Platform, r.FileSizeHuman, latest)
-			}
-			return w.Flush()
-		}
 
-		for _, r := range releases {
-			fmt.Println(r.Version)
-		}
-		return nil
+			if verbose {
+				w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+				fmt.Fprintln(w, "VERSION\tCHANNEL\tPLATFORM\tSIZE\tLATEST")
+				for _, r := range releases {
+					latest := ""
+					if r.Latest {
+						latest = "yes"
+					}
+					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+						r.Version, r.Channel, r.Platform, r.FileSizeHuman, latest)
+				}
+				return w.Flush()
+			}
+
+			for _, r := range releases {
+				fmt.Println(r.Version)
+			}
+			return nil
 		},
 	}
 	cmd.Flags().StringVarP(&channel, "channel", "c", "", "release channel (stable or unstable)")

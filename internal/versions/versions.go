@@ -45,16 +45,16 @@ func FetchReleases(ctx context.Context, url, channel string) ([]Release, error) 
 				continue
 			}
 			releases = append(releases, Release{
-				Version:      versionStr,
-				Channel:      channel,
-				Platform:     platform,
-				Filename:     pf.Filename,
-				DownloadURL:  pf.URLs.CDN,
-				Checksum:     pf.MD5,
-				ChecksumAlgo: "md5",
-				DownloadSize: size,
+				Version:       versionStr,
+				Channel:       channel,
+				Platform:      platform,
+				Filename:      pf.Filename,
+				DownloadURL:   pf.URLs.CDN,
+				Checksum:      pf.MD5,
+				ChecksumAlgo:  "md5",
+				DownloadSize:  size,
 				FileSizeHuman: pf.FileSize,
-				Latest:       pf.Latest == 1,
+				Latest:        pf.Latest == 1,
 			})
 		}
 	}
@@ -163,4 +163,4 @@ func FindLatestRelease(releases []Release, platform string) (Release, error) {
 		return Release{}, fmt.Errorf("no releases found for platform %q", platform)
 	}
 	return latest, nil
-}	
+}

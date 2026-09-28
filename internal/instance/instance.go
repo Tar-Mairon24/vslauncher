@@ -10,12 +10,13 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Tar-Mairon24/vslauncher/internal/appdirs"
 	"github.com/Tar-Mairon24/vslauncher/internal/download"
 	"github.com/Tar-Mairon24/vslauncher/internal/versions"
-	"github.com/Tar-Mairon24/vslauncher/internal/appdirs"
 )
 
-func Create(ctx context.Context, name string, release versions.Release, customPath string, createDesktopFile bool, progress download.ProgressReporters) (*Instance, error) {	var instancesRoot string
+func Create(ctx context.Context, name string, release versions.Release, customPath string, createDesktopFile bool, progress download.ProgressReporters) (*Instance, error) {
+	var instancesRoot string
 	var err error
 	isCustomPath := customPath != ""
 
@@ -35,7 +36,6 @@ func Create(ctx context.Context, name string, release versions.Release, customPa
 	} else if !errors.Is(err, ErrNotFound) {
 		return nil, fmt.Errorf("checking for existing instance: %w", err)
 	}
-
 
 	if err := download.FetchAndExtract(ctx, release, instanceDir, progress); err != nil {
 		return nil, fmt.Errorf("installing instance %q: %w", name, err)
@@ -115,7 +115,7 @@ func List() ([]Instance, error) {
 		instances = append(instances, *inst)
 		knownPaths[entry.Path] = true
 	}
-	
+
 	return instances, nil
 }
 
@@ -202,7 +202,7 @@ func CreateDesktopFile(inst *Instance) (string, error) {
 		return "", fmt.Errorf("creating desktop file directory: %w", err)
 	}
 	desktopPath := filepath.Join(linuxDesktopPath, fmt.Sprintf("vslauncher-%s.desktop", inst.Name))
-	
+
 	file, err := os.Create(desktopPath)
 	if err != nil {
 		return "", fmt.Errorf("creating desktop file: %w", err)
@@ -210,7 +210,7 @@ func CreateDesktopFile(inst *Instance) (string, error) {
 	defer file.Close()
 
 	inst.DesktopPath = desktopPath
-	
+
 	data := desktopData{Instance: inst, BinaryPath: filepath.Join(inst.Path, "vintagestory", "Vintagestory")}
 	if err := desktopLinuxTemplate.Execute(file, data); err != nil {
 		return "", fmt.Errorf("writing desktop file: %w", err)
